@@ -57,31 +57,6 @@ pub async fn send_request(header_size: &str, http_v: &str, state: Arc<Mutex<AppS
     Ok(())
 }
 
-pub fn input_widget_builder<'a>(app: &'a mut App, index: usize) -> Paragraph<'a> {
-    let title = if index == 0 {"Delay (ms)"} else if index == 1 {"Header Size(kb)"} else {"Iteration"};
-    let text = if index == 0 {app.delay_ms.as_str()} else if index == 1 {app.header_size_kb.as_str()} else {app.iteration.as_str()};
-    let mode = if index == 0 {InputMode::EditingDelay} else if index == 1 {InputMode::EditingHeaderSize} else {InputMode::EditingIteration};
-
-    let delay_style = if app.focused_item == index {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
-    
-    let delay_block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .border_style(delay_style);
-    
-    let delay_text = Paragraph::new(text)
-        .block(delay_block)
-        .style(
-            if app.input_mode == mode { Style::default().fg(Color::Yellow) } else { Style::default() }
-        );
-
-    return delay_text;
-}
-
 pub fn input_handling(input: &mut String, key: KeyCode) {
     match key {
         KeyCode::Char(c) => {

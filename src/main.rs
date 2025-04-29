@@ -1,4 +1,5 @@
 mod utils;
+mod ui;
 
 use std::{io, sync::{mpsc, Arc, Mutex}, thread, time::{Duration, Instant}};
 use chrono::Local;
@@ -16,7 +17,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
     Frame, Terminal,
 };
-use utils::{input_handling, input_widget_builder};
+use utils::input_handling;
+use ui::ui;
 
 // 작업 스레드와 공유할 상태
 pub struct AppState {
@@ -41,6 +43,7 @@ impl AppState {
 #[derive(PartialEq, Eq)]
 enum InputMode {
     Normal,
+    EditingDstUrl,
     EditingDelay,
     EditingHeaderSize,
     EditingIteration
@@ -48,6 +51,7 @@ enum InputMode {
 
 struct App {
     // 입력 필드
+    dst_url: String,
     delay_ms: String,
     header_size_kb: String,
     iteration: String,
@@ -62,13 +66,14 @@ struct App {
     log_scroll: usize,
     // 실행 중 여부
     running: bool,
-    // 포커스된 항목 (0: 지연시간, 1: 헤더 크기, 2: 반복 횟수, 3: HTTP 프로토콜, 4: 실행 버튼, 5: 로그 영역)
+    // 포커스된 항목 (0: 주소입력창, 1: 지연시간, 2: 헤더 크기, 3: 반복 횟수, 4: HTTP 프로토콜, 5: 실행 버튼, 6: 로그 영역)
     focused_item: usize,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
+            dst_url: String::from(""),
             delay_ms: String::from("100"),
             header_size_kb: String::from("1"),
             iteration: String::from("1"),
@@ -211,25 +216,26 @@ fn run_app<B: ratatui::backend::Backend>(
                         return Ok(());
                     }
                     KeyCode::Tab => {
-                        app.focused_item = (app.focused_item + 1) % 6; // 로그 영역까지 포함하여 6개 항목
+                        app.focused_item = (app.focused_item + 1) % 7; // 로그 영역까지 포함하여 6개 항목
                         match app.focused_item {
-                            0 | 1 | 2 | 3 => app.input_mode = InputMode::Normal,
+                            0 | 1 | 2 | 3 | 4 => app.input_mode = InputMode::Normal,
                             _ => {}
                         }
                     }
                     KeyCode::BackTab => {
-                        app.focused_item = (app.focused_item + 5) % 6; // 로그 영역까지 포함하여 6개 항목
+                        app.focused_item = (app.focused_item + 6) % 7; // 로그 영역까지 포함하여 6개 항목
                         match app.focused_item {
-                            0 | 1 | 2 | 3 => app.input_mode = InputMode::Normal,
+                            0 | 1 | 2 | 3 | 4 => app.input_mode = InputMode::Normal,
                             _ => {}
                         }
                     }
                     KeyCode::Enter => match app.focused_item {
-                        0 => app.input_mode = InputMode::EditingDelay,
-                        1 => app.input_mode = InputMode::EditingHeaderSize,
-                        2 => app.input_mode = InputMode::EditingIteration,
-                        3 => app.protocol_index = (app.protocol_index + 1) % app.protocols.len(),
-                        4 => {
+                        0 => app.input_mode = InputMode::EditingDstUrl,
+                        1 => app.input_mode = InputMode::EditingDelay,
+                        2 => app.input_mode = InputMode::EditingHeaderSize,
+                        3 => app.input_mode = InputMode::EditingIteration,
+                        4 => app.protocol_index = (app.protocol_index + 1) % app.protocols.len(),
+                        5 => {
                             // 실행/중지 토글
                             let mut state = app_state.lock().unwrap();
                             state.iteration = app.iteration.parse::<usize>().unwrap_or(1);
@@ -256,18 +262,19 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Esc => app.input_mode = InputMode::Normal,
                     // 입력 모드에 따라 다른 키 처리
                     key => match app.input_mode {
+                        InputMode::EditingDstUrl => input_handling(&mut app.dst_url, key),
                         InputMode::EditingDelay => input_handling(&mut app.delay_ms, key),
                         InputMode::EditingHeaderSize => input_handling(&mut app.header_size_kb, key),
                         InputMode::EditingIteration => input_handling(&mut app.iteration, key),
                         InputMode::Normal => match app.focused_item {
-                            3 => {
+                            4 => {
                                 if matches!(key, KeyCode::Right | KeyCode::Char('l')) {
                                     app.protocol_index = (app.protocol_index + 1) % app.protocols.len();
                                 } else if matches!(key, KeyCode::Left | KeyCode::Char('h')) {
                                     app.protocol_index = (app.protocol_index + app.protocols.len() - 1) % app.protocols.len();
                                 }
                             }
-                            4 => {
+                            5 => {
                                 if matches!(key, KeyCode::Char(' ')) {
                                     // 실행/중지 토글
                                     let mut state = app_state.lock().unwrap();
@@ -285,7 +292,7 @@ fn run_app<B: ratatui::backend::Backend>(
                                     }
                                 }
                             }
-                            5 => {
+                            6 => {
                                 // 로그 영역 스크롤 처리
                                 if matches!(key, KeyCode::Down | KeyCode::Char('j')) {
                                     if app.log_scroll < app.logs.len().saturating_sub(1) {
@@ -311,183 +318,5 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             }
         }
-    }
-}
-
-fn ui(f: &mut Frame, app: &mut App) {
-    // 메인 레이아웃 분할 (상단 입력 영역, 하단 로그 영역)
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(9), // 입력 영역
-            Constraint::Min(3),   // 로그 영역
-        ])
-        .split(f.area());
-
-    // 입력 영역 내부 레이아웃
-    let input_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // 지연시간, 헤더 크기 입력
-            Constraint::Length(3), // HTTP 프로토콜 선택
-            Constraint::Length(3), // 실행 버튼
-        ])
-        .split(chunks[0]);
-
-    // 첫 번째 행 (지연시간, 헤더 크기 입력)
-    let first_row_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ])
-        .split(input_chunks[0]);
-
-    // 두번째 행 (반복 횟수, 프로토콜)
-    let second_row_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50)
-        ]).split(input_chunks[1]);
-
-    // 지연시간 입력 필드
-    let delay_text = input_widget_builder(app, 0);
-    
-    f.render_widget(delay_text, first_row_chunks[0]);
-
-    // 헤더 크기 입력 필드
-    let header_text = input_widget_builder(app, 1);
-    
-    f.render_widget(header_text, first_row_chunks[1]);
-
-    // 반복 입력 필드
-    let iter_text = input_widget_builder(app, 2);
-
-    f.render_widget(iter_text, second_row_chunks[0]);
-
-    // HTTP 프로토콜 선택
-    let protocol_style = if app.focused_item == 3 {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
-    
-    let protocols: Vec<Line> = app
-        .protocols
-        .iter()
-        .enumerate()
-        .map(|(i, p)| {
-            if i == app.protocol_index {
-                Line::from(vec![Span::styled(
-                    *p,
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-                )])
-            } else {
-                Line::from(vec![Span::raw(*p)])
-            }
-        })
-        .collect();
-
-    let tabs = Tabs::new(protocols)
-        .block(
-            Block::default()
-                .title("HTTP Protocol")
-                .borders(Borders::ALL)
-                .border_style(protocol_style),
-        )
-        .select(app.protocol_index)
-        .style(Style::default())
-        .highlight_style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD));
-    
-    f.render_widget(tabs, second_row_chunks[1]);
-
-    // 실행 버튼
-    let button_style = if app.focused_item == 4 {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
-
-    let button_text = if app.running { "Stop" } else { "Start" };
-    let button_color = if app.running { Color::Red } else { Color::Green };
-    
-    let button = Paragraph::new(button_text)
-        .style(Style::default().fg(button_color).add_modifier(Modifier::BOLD))
-        .alignment(ratatui::layout::Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(button_style),
-        );
-    
-    f.render_widget(button, input_chunks[2]);
-
-    // 로그 영역
-    let log_style = if app.focused_item == 5 {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
-    
-    let visible_height = chunks[1].height as usize - 2; // 테두리 제외 높이
-    
-    // 표시할 로그 항목 계산
-    let logs_count = app.logs.len();
-    let start_index = if logs_count > 0 {
-        // 스크롤 위치에 따라 시작 인덱스 계산
-        logs_count.saturating_sub(visible_height).saturating_sub(app.log_scroll)
-    } else {
-        0
-    };
-    
-    let end_index = logs_count;
-    
-    let logs: Vec<ListItem> = app
-        .logs
-        .iter()
-        .skip(start_index)
-        .take(end_index - start_index)
-        .map(|log| {
-            ListItem::new(Line::from(log.to_owned()))
-        })
-        .collect();
-
-    let log_title = if app.focused_item == 5 {
-        format!("Log [{}/{}]", app.log_scroll, logs_count.saturating_sub(1).max(0))
-    } else {
-        "Log".to_string()
-    };
-
-    let logs_list = List::new(logs)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(log_title)
-            .border_style(log_style))
-        .style(Style::default());
-    
-    f.render_widget(logs_list, chunks[1]);
-
-    // 커서 위치 (입력 모드일 때만)
-    match app.input_mode {
-        InputMode::EditingDelay => {
-            f.set_cursor_position(Position {
-                x: first_row_chunks[0].x + app.delay_ms.len() as u16 + 1,
-                y: first_row_chunks[0].y + 1,
-            });
-        }
-        InputMode::EditingHeaderSize => {
-            f.set_cursor_position(Position {
-                x: first_row_chunks[1].x + app.header_size_kb.len() as u16 + 1,
-                y: first_row_chunks[1].y + 1,
-            });
-        }
-        InputMode::EditingIteration => {
-            f.set_cursor_position(Position {
-                x: second_row_chunks[0].x + app.iteration.len() as u16 + 1,
-                y: second_row_chunks[0].y + 1,
-            });
-        }
-        _ => {}
     }
 }
