@@ -11,3 +11,7 @@ crossterm = "0.28.1"
 ratatui = "0.29.0"
 color-eyre = "0.6.3"
 chrono = "0.4.40"
+reqwest = "0.12.15"
+tokio = { version = "1.44.2", features = ["rt", "rt-multi-thread"] }
+rand = "0.9.1"
+base62 = "2.2.1"
