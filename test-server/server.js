@@ -26,13 +26,25 @@ function formatTimestamp() {
     return `[${hours}:${minutes}:${seconds}.${milliseconds}]`
 }
 
+// 랜덤 문자열 생성 함수 (300KB)
+function generateRandomString(sizeInKB) {
+  const sizeInBytes = sizeInKB * 1024; // KB를 바이트로 변환
+  let result = '';
+  while (result.length < sizeInBytes) {
+      result += crypto.randomBytes(1024).toString('base64'); // 1KB씩 생성
+  }
+  return result.substring(0, sizeInBytes); // 정확한 크기만큼 반환
+}
+
 // HTTP 서버(HTTP/1.1 및 h2c)에 라우트 추가
 http11Server.post('/', async (request, reply) => {
     const myId = request.headers['my_id'] || 'unknown'
     const protocol = request.headers[':scheme'] ? 'HTTP/2' : 'HTTP/1.1'
     console.log(`${formatTimestamp()} ${myId} arrived (${protocol})`)
-  
-    return { status: 'ok' }
+
+    const response_body = generateRandomString(300);
+
+    return { status: 'ok', data: response_body }
 })
 
 http2Server.post('/', async (request, reply) => {
