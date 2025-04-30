@@ -1,4 +1,14 @@
-fn input_widget_builder<'a>(app: &'a mut App, index: usize, title: &str, mode: InputMode) -> Paragraph<'a> {
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Position},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
+    Frame
+};
+
+use crate::{App, InputMode};
+
+fn input_widget_builder<'a>(app: &'a mut App, index: usize, title: String, mode: InputMode) -> Paragraph<'a> {
     let text = if index == 0 {app.dst_url.as_str()} 
                 else if index == 1 {app.delay_ms.as_str()} 
                 else if index == 2 {app.header_size_kb.as_str()}
@@ -46,7 +56,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         .split(chunks[0]);
     
     // 주소입력 행
-    let dst_url_text = input_widget_builder(app, 0, "Destination URL", InputMode::EditingDstUrl);
+    let dst_url_text = input_widget_builder(app, 0, "Destination URL".to_owned(), InputMode::EditingDstUrl);
     f.render_widget(dst_url_text, input_chunks[0]);
 
     // 첫 번째 행 (지연시간, 헤더 크기 입력)
@@ -67,19 +77,19 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         ]).split(input_chunks[2]);
 
     // 지연시간 입력 필드
-    let delay_text = input_widget_builder(app, 0, "Delay (ms)", InputMode::EditingDelay);
+    let delay_text = input_widget_builder(app, 1, "Delay (ms)".to_owned(), InputMode::EditingDelay);
     f.render_widget(delay_text, second_row_chunks[0]);
 
     // 헤더 크기 입력 필드
-    let header_text = input_widget_builder(app, 1, "Header Size(kb)", InputMode::EditingHeaderSize);
+    let header_text = input_widget_builder(app, 2, "Header Size(kb)".to_owned(), InputMode::EditingHeaderSize);
     f.render_widget(header_text, second_row_chunks[1]);
 
     // 반복 입력 필드
-    let iter_text = input_widget_builder(app, 2, "Iteration", InputMode::EditingIteration);
+    let iter_text = input_widget_builder(app, 3, "Iteration".to_owned(), InputMode::EditingIteration);
     f.render_widget(iter_text, third_row_chunks[0]);
 
     // HTTP 프로토콜 선택
-    let protocol_style = if app.focused_item == 3 {
+    let protocol_style = if app.focused_item == 4 {
         Style::default().fg(Color::Yellow)
     } else {
         Style::default()
@@ -115,7 +125,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(tabs, third_row_chunks[1]);
 
     // 실행 버튼
-    let button_style = if app.focused_item == 4 {
+    let button_style = if app.focused_item == 5 {
         Style::default().fg(Color::Yellow)
     } else {
         Style::default()
@@ -136,7 +146,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(button, input_chunks[3]);
 
     // 로그 영역
-    let log_style = if app.focused_item == 5 {
+    let log_style = if app.focused_item == 6 {
         Style::default().fg(Color::Yellow)
     } else {
         Style::default()
@@ -165,7 +175,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         })
         .collect();
 
-    let log_title = if app.focused_item == 5 {
+    let log_title = if app.focused_item == 6 {
         format!("Log [{}/{}]", app.log_scroll, logs_count.saturating_sub(1).max(0))
     } else {
         "Log".to_string()

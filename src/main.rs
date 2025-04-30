@@ -10,20 +10,21 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 
-use ratatui::{
-    layout::{Constraint, Direction, Layout, Position},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
-    Frame, Terminal,
-};
-use utils::input_handling;
+
+use ratatui::Terminal;
+use utils::*;
 use ui::ui;
 
 // 작업 스레드와 공유할 상태
 pub struct AppState {
     running: bool,
+    // 실행값
     iteration: usize,
+    dst_url: String,
+    delay_ms: u64,
+    header_size_kb: usize,
+    protocol: String,
+    // 로그
     logs: Vec<String>,
 }
 
@@ -130,29 +131,36 @@ fn run_app<B: ratatui::backend::Backend>(
         running: false,
         iteration: 1,
         logs: Vec::new(),
+        dst_url: String::from(""),
+        delay_ms: 0,
+        header_size_kb: 0,
+        protocol: "HTTP/1.1".to_owned(),
     }));
     
     let app_state_clone = app_state.clone();
     
     // 작업 스레드
     thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
         let mut iter = 0;
+
         loop {
             // 상태 확인
             let state = {
                 let state = app_state_clone.lock().unwrap();
-                (state.running, state.iteration)
+                (state.running, state.iteration, state.dst_url.clone(), state.delay_ms, state.header_size_kb, state.protocol.clone())
             };
             
-            let (running, max_iter) = state;
-            
+            let (running, max_iter, dst_url, delay, header_size, protocol) = state;
+            let cloned_app_state = app_state_clone.clone();
+
             if running && iter < max_iter {
                 // 로그 추가
-                thread::sleep(Duration::from_millis(500)); // 로그 생성 간격
-                
-                let mut state = app_state_clone.lock().unwrap();
-                state.add_log("요청 실행 중...");
-                
+                thread::sleep(Duration::from_millis(delay)); // 로그 생성 간격
+                rt.spawn(async move {
+                    let _ = send_request(&dst_url, header_size, &protocol, cloned_app_state).await;
+                });
+
                 iter = iter + 1;
             }
             else if running {
@@ -238,22 +246,27 @@ fn run_app<B: ratatui::backend::Backend>(
                         5 => {
                             // 실행/중지 토글
                             let mut state = app_state.lock().unwrap();
-                            state.iteration = app.iteration.parse::<usize>().unwrap_or(1);
-                            state.running = !state.running;
-                            
-                            if state.running {
+
+                            if !state.running {
                                 let delay = app.delay_ms.parse::<u64>().unwrap_or(100);
                                 let header_size = app.header_size_kb.parse::<usize>().unwrap_or(1);
                                 let protocol = app.protocols[app.protocol_index];
                                 let iteration = app.iteration.parse::<usize>().unwrap_or(1);
-                                        
+
+                                state.dst_url = app.dst_url.clone();
+                                state.delay_ms = delay;
+                                state.header_size_kb = header_size;
+                                state.iteration = iteration;
+                                state.running = true;
+
                                 state.add_log(&format!("Process Start: Delay {}ms, Header Size {}kb, Protocol {}, Iter {}", delay, header_size, protocol, iteration));
                             } else {
+                                state.running = false;
                                 state.add_log("Process Stopped by user");
                             }
                             
                             // 새 로그가 추가되면 자동으로 스크롤을 최신 로그로 이동 (focused_item이 로그 영역일 때만)
-                            if app.focused_item == 5 {
+                            if app.focused_item == 6 {
                                 app.log_scroll = 0;
                             }
                         }
@@ -263,9 +276,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     // 입력 모드에 따라 다른 키 처리
                     key => match app.input_mode {
                         InputMode::EditingDstUrl => input_handling(&mut app.dst_url, key),
-                        InputMode::EditingDelay => input_handling(&mut app.delay_ms, key),
-                        InputMode::EditingHeaderSize => input_handling(&mut app.header_size_kb, key),
-                        InputMode::EditingIteration => input_handling(&mut app.iteration, key),
+                        InputMode::EditingDelay => input_handling_num(&mut app.delay_ms, key),
+                        InputMode::EditingHeaderSize => input_handling_num(&mut app.header_size_kb, key),
+                        InputMode::EditingIteration => input_handling_num(&mut app.iteration, key),
                         InputMode::Normal => match app.focused_item {
                             4 => {
                                 if matches!(key, KeyCode::Right | KeyCode::Char('l')) {
@@ -278,16 +291,22 @@ fn run_app<B: ratatui::backend::Backend>(
                                 if matches!(key, KeyCode::Char(' ')) {
                                     // 실행/중지 토글
                                     let mut state = app_state.lock().unwrap();
-                                    state.running = !state.running;
                                     
-                                    if state.running {
+                                    if !state.running {
                                         let delay = app.delay_ms.parse::<u64>().unwrap_or(100);
                                         let header_size = app.header_size_kb.parse::<usize>().unwrap_or(1);
                                         let protocol = app.protocols[app.protocol_index];
                                         let iteration = app.iteration.parse::<usize>().unwrap_or(1);
-                                        
+
+                                        state.dst_url = app.dst_url.clone();
+                                        state.delay_ms = delay;
+                                        state.header_size_kb = header_size;
+                                        state.iteration = iteration;
+                                        state.running = true;
+
                                         state.add_log(&format!("Process Start: Delay {}ms, Header Size {}kb, Protocol {}, Iter {}", delay, header_size, protocol, iteration));
                                     } else {
+                                        state.running = false;
                                         state.add_log("Process Stopped by user");
                                     }
                                 }

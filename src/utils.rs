@@ -2,12 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use crossterm::event::KeyCode;
 use rand::{distr::Alphanumeric, Rng};
-use ratatui::{style::{Color, Style}, widgets::{Block, Borders, Paragraph}};
 use reqwest::{header::{HeaderMap, HeaderValue}, Client};
 
-use crate::{App, AppState, InputMode};
-
-const SERVER_URL: &str = "http://localhost:8020";
+use crate::AppState;
 
 fn create_header(id: &str, size: usize) -> HeaderMap {
     // 헤더 생성
@@ -19,13 +16,11 @@ fn create_header(id: &str, size: usize) -> HeaderMap {
     headers
 }
 
-pub async fn send_request(header_size: &str, http_v: &str, state: Arc<Mutex<AppState>>) -> reqwest::Result<()> {
+pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Arc<Mutex<AppState>>) -> reqwest::Result<()> {
     // 클라이언트 생성
     let cb = if http_v == "HTTP/1.1" {Client::builder().http1_only()} else {Client::builder().http2_prior_knowledge()};
     let client = cb.build()?;
     
-    // 헤더 사이즈 String -> usize로 변환
-    let header_size = header_size.parse::<usize>().unwrap_or(1);
 
     // HTTP Request 보내기
     let random_bytes: [u8; 8] = rand::rng().random();
@@ -33,7 +28,7 @@ pub async fn send_request(header_size: &str, http_v: &str, state: Arc<Mutex<AppS
     let headers = create_header(&my_id, header_size);
 
 
-    let result_log = match client.post(SERVER_URL).headers(headers).send().await {
+    let result_log = match client.post(url).headers(headers).send().await {
         Ok(response) => {
             let status = response.status();
             if status.is_success() {
@@ -46,7 +41,7 @@ pub async fn send_request(header_size: &str, http_v: &str, state: Arc<Mutex<AppS
                 format!("Request {} Failed. HTTP {}", &my_id, &status)
             }
         }
-        Err(e) => format!("Request {} failed to get send with error: {}", &my_id, e)
+        Err(e) => format!("Request {} failed to send with error: {}", &my_id, e)
     };
 
     let mut app_state = state.lock().unwrap();
@@ -57,12 +52,24 @@ pub async fn send_request(header_size: &str, http_v: &str, state: Arc<Mutex<AppS
     Ok(())
 }
 
-pub fn input_handling(input: &mut String, key: KeyCode) {
+pub fn input_handling_num(input: &mut String, key: KeyCode) {
     match key {
         KeyCode::Char(c) => {
             if c.is_digit(10) {
                 input.push(c);
             }
+        }
+        KeyCode::Backspace => {
+            input.pop();
+        }
+        _ => {}
+    }
+}
+
+pub fn input_handling(input: &mut String, key: KeyCode) {
+    match key {
+        KeyCode::Char(c) => {
+            input.push(c);
         }
         KeyCode::Backspace => {
             input.pop();
