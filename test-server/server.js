@@ -1,0 +1,60 @@
+// combined-server.js
+'use strict'
+
+const fastify = require('fastify')
+
+// 일반 HTTP/1.1 및 h2c(HTTP/2 Cleartext) 서버
+const http11Server = fastify({
+    http2: false, // h2c 지원
+    logger: false
+})
+
+const http2Server = fastify({
+    http2: true, // h2c 지원
+    http2SessionTimeout: 10000,
+    logger: false
+})
+
+// 타임스탬프 포맷 함수
+function formatTimestamp() {
+    const now = new Date()
+    const hours = now.getHours().toString().padStart(2, '0')
+    const minutes = now.getMinutes().toString().padStart(2, '0')
+    const seconds = now.getSeconds().toString().padStart(2, '0')
+    const milliseconds = now.getMilliseconds().toString().padStart(6, '0')
+    
+    return `[${hours}:${minutes}:${seconds}.${milliseconds}]`
+}
+
+// HTTP 서버(HTTP/1.1 및 h2c)에 라우트 추가
+http11Server.post('/', async (request, reply) => {
+    const myId = request.headers['my_id'] || 'unknown'
+    const protocol = request.headers[':scheme'] ? 'HTTP/2' : 'HTTP/1.1'
+    console.log(`${formatTimestamp()} ${myId} arrived (${protocol})`)
+  
+    return { status: 'ok' }
+})
+
+http2Server.post('/', async (request, reply) => {
+    const myId = request.headers['my_id'] || 'unknown'
+    const protocol = request.headers[':scheme'] ? 'HTTP/2' : 'HTTP/1.1'
+    console.log(`${formatTimestamp()} ${myId} arrived (${protocol})`)
+    
+    return { status: 'ok' }
+})
+
+// 서버 시작
+const start = async () => {
+  try {
+    await http11Server.listen({ port: 24420, host: '0.0.0.0' })
+    console.log('HTTP server (HTTP/1.1) is running on port 24420')
+
+    await http2Server.listen({ port: 24421, host: '0.0.0.0' })
+    console.log('HTTP server (HTTP/2) is running on port 24421')
+  } catch (err) {
+    console.error(err)
+    process.exit(1)
+  }
+}
+
+start()

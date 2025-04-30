@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crossterm::event::KeyCode;
 use rand::{distr::Alphanumeric, Rng};
-use reqwest::{header::{HeaderMap, HeaderValue}, Client};
+use reqwest::{header::{HeaderMap, HeaderValue}, Client, Version};
 
 use crate::AppState;
 
@@ -19,7 +19,7 @@ fn create_header(id: &str, size: usize) -> HeaderMap {
 pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Arc<Mutex<AppState>>) -> reqwest::Result<()> {
     // 클라이언트 생성
     let cb = if http_v == "HTTP/1.1" {Client::builder().http1_only()} else {Client::builder().http2_prior_knowledge()};
-    let client = cb.build()?;
+    let client = if http_v == "HTTP/1.1" {cb.build()?.post(url)} else {cb.build()?.post(url).version(Version::HTTP_2)};
     
 
     // HTTP Request 보내기
@@ -28,7 +28,7 @@ pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Ar
     let headers = create_header(&my_id, header_size);
 
 
-    let result_log = match client.post(url).headers(headers).send().await {
+    let result_log = match client.headers(headers).send().await {
         Ok(response) => {
             let status = response.status();
             if status.is_success() {
