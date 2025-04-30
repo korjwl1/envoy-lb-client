@@ -2,6 +2,7 @@
 'use strict'
 
 const fastify = require('fastify')
+const crypto = require('crypto')
 
 // 일반 HTTP/1.1 및 h2c(HTTP/2 Cleartext) 서버
 const http11Server = fastify({
