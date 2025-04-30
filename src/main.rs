@@ -171,10 +171,9 @@ fn run_app<B: ratatui::backend::Backend>(
             }
             else {
                 iter = 0;
+                // 작업 스레드가 너무 CPU를 점유하지 않도록 짧은 대기
+                thread::sleep(Duration::from_millis(100));
             }
-            
-            // 작업 스레드가 너무 CPU를 점유하지 않도록 짧은 대기
-            thread::sleep(Duration::from_millis(100));
         }
     });
     
