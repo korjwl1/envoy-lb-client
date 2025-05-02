@@ -33,7 +33,7 @@ pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Ar
     let headers = create_header(&my_id, header_size);
 
     let sender = if http_v == "queryString" {
-        client.query(&[("content", &random_string(header_size))])
+        client.query(&[("content", &random_string(header_size))]).header("my_id", my_id.clone())
     } else {
         client.headers(headers)
     };

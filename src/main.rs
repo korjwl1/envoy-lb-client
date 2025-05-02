@@ -255,6 +255,7 @@ fn run_app<B: ratatui::backend::Backend>(
                                 state.dst_url = app.dst_url.clone();
                                 state.delay_ms = delay;
                                 state.header_size_kb = header_size;
+                                state.protocol = protocol.to_owned();
                                 state.iteration = iteration;
                                 state.running = true;
 
@@ -300,6 +301,7 @@ fn run_app<B: ratatui::backend::Backend>(
                                         state.dst_url = app.dst_url.clone();
                                         state.delay_ms = delay;
                                         state.header_size_kb = header_size;
+                                        state.protocol = protocol.to_owned();
                                         state.iteration = iteration;
                                         state.running = true;
 
