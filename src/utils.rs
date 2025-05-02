@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::{sync::{Arc, Mutex}, time::Duration};
 
 use crossterm::event::KeyCode;
 use rand::{distr::Alphanumeric, Rng};
@@ -6,29 +6,39 @@ use reqwest::{header::{HeaderMap, HeaderValue}, Client, Version};
 
 use crate::AppState;
 
+fn random_string(size: usize) -> String {
+    rand::rng().sample_iter(&Alphanumeric).take(size * 1024).map(char::from).collect::<String>()
+}
+
 fn create_header(id: &str, size: usize) -> HeaderMap {
     // 헤더 생성
     let mut headers = HeaderMap::new();
     headers.insert("my_id", HeaderValue::from_str(id).unwrap());
     headers.insert("random_header", HeaderValue::from_str(
-        &rand::rng().sample_iter(&Alphanumeric).take(size * 1024).map(char::from).collect::<String>()
+        &random_string(size)
     ).expect("Failed to add random header"));
     headers
 }
 
 pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Arc<Mutex<AppState>>) -> reqwest::Result<()> {
-    // 클라이언트 생성
-    let cb = if http_v == "HTTP/1.1" {Client::builder().http1_only()} else {Client::builder().http2_prior_knowledge()};
-    let client = if http_v == "HTTP/1.1" {cb.build()?.post(url)} else {cb.build()?.post(url).version(Version::HTTP_2)};
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .tcp_keepalive(Duration::from_secs(60)).tcp_nodelay(true)
+        .pool_max_idle_per_host(5).pool_idle_timeout(Duration::from_secs(90))
+        .http1_only().build()?.post(url);
     
-
     // HTTP Request 보내기
     let random_bytes: [u8; 8] = rand::rng().random();
     let my_id = base62::encode(u64::from_be_bytes(random_bytes));
     let headers = create_header(&my_id, header_size);
 
+    let sender = if http_v == "queryString" {
+        client.query(&[("content", &random_string(header_size))])
+    } else {
+        client.headers(headers)
+    };
 
-    let result_log = match client.headers(headers).send().await {
+    let result_log = match sender.send().await {
         Ok(response) => {
             let status = response.status();
             if status.is_success() {

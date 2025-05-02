@@ -10,12 +10,6 @@ const http11Server = fastify({
     logger: false
 })
 
-const http2Server = fastify({
-    http2: true, // h2c 지원
-    http2SessionTimeout: 10000,
-    logger: false
-})
-
 // 타임스탬프 포맷 함수
 function formatTimestamp() {
     const now = new Date()
@@ -48,22 +42,11 @@ http11Server.post('/', async (request, reply) => {
     return { status: 'ok', data: response_body }
 })
 
-http2Server.post('/', async (request, reply) => {
-    const myId = request.headers['my_id'] || 'unknown'
-    const protocol = request.headers[':scheme'] ? 'HTTP/2' : 'HTTP/1.1'
-    console.log(`${formatTimestamp()} ${myId} arrived (${protocol})`)
-    
-    return { status: 'ok' }
-})
-
 // 서버 시작
 const start = async () => {
   try {
     await http11Server.listen({ port: 24420, host: '0.0.0.0' })
     console.log('HTTP server (HTTP/1.1) is running on port 24420')
-
-    await http2Server.listen({ port: 24421, host: '0.0.0.0' })
-    console.log('HTTP server (HTTP/2) is running on port 24421')
   } catch (err) {
     console.error(err)
     process.exit(1)

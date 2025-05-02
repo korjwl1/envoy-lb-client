@@ -79,7 +79,7 @@ impl Default for App {
             header_size_kb: String::from("1"),
             iteration: String::from("1"),
             protocol_index: 0,
-            protocols: vec!["HTTP/1.1", "HTTP/2"],
+            protocols: vec!["queryString", "headerKey"],
             input_mode: InputMode::Normal,
             logs: Vec::new(),
             log_scroll: 0,
@@ -134,7 +134,7 @@ fn run_app<B: ratatui::backend::Backend>(
         dst_url: String::from(""),
         delay_ms: 0,
         header_size_kb: 0,
-        protocol: "HTTP/1.1".to_owned(),
+        protocol: "queryString".to_owned(),
     }));
     
     let app_state_clone = app_state.clone();

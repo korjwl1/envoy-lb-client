@@ -114,7 +114,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     let tabs = Tabs::new(protocols)
         .block(
             Block::default()
-                .title("HTTP Protocol")
+                .title("WhereToTest")
                 .borders(Borders::ALL)
                 .border_style(protocol_style),
         )
