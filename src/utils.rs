@@ -51,7 +51,7 @@ pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Ar
                 format!("Request {} Failed. HTTP {}", &my_id, &status)
             }
         }
-        Err(e) => format!("Request {} failed to send with error: {}", &my_id, e)
+        Err(e) => format!("Request {} failed to send with error: {}", &my_id, e.without_url())
     };
 
     let mut app_state = state.lock().unwrap();
