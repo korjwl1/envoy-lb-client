@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, time::Duration};
+use std::{error::Error, sync::{Arc, Mutex}, time::Duration};
 
 use crossterm::event::KeyCode;
 use rand::{distr::Alphanumeric, Rng};
@@ -51,7 +51,7 @@ pub async fn send_request(url: &str, header_size: usize, http_v: &str, state: Ar
                 format!("Request {} Failed. HTTP {}", &my_id, &status)
             }
         }
-        Err(e) => format!("Request {} failed to send with error: {}", &my_id, e.without_url())
+        Err(e) => format!("Request {} failed to send with error: {:?}", &my_id, e.source())
     };
 
     let mut app_state = state.lock().unwrap();
