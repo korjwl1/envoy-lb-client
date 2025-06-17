@@ -1,6 +1,7 @@
 mod utils;
 mod ui;
 
+// 단순 주석 추가 테스트
 use std::{io, sync::{mpsc, Arc, Mutex}, thread, time::{Duration, Instant}};
 use chrono::Local;
 use color_eyre::eyre;
